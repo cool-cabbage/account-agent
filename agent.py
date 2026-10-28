@@ -1,8 +1,9 @@
 import os
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-from db import init_db, add_record
+from db import init_db, add_record, query_records
 
 load_dotenv()
 client = OpenAI(
@@ -12,14 +13,20 @@ client = OpenAI(
 MODEL = os.getenv("MODEL")
 
 # ===== 第1段：给模型的规则 =====
-SYSTEM_PROMPT = """你是一个记账助手，帮用户记录日常收支。
+TODAY = datetime.now().strftime("%Y-%m-%d")
+
+SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收支。
+今天是{TODAY}。
 规则：
 1. 用户提到花了钱或收到钱时，调用 add_record 工具记账。
 2. 金额不明确时，先向用户追问，不要自己编造金额。
 3. 分类尽量从这些里选：餐饮、交通、购物、娱乐、生活费、工资、其他。
 4. 记账成功后，用一句话告诉用户记了什么。
 5. 工具返回 error 时，根据错误信息修正参数，或者向用户确认。
-6. 回答简洁，用中文。"""
+6. 用户问花了多少、记了几笔、某段时间的收支时，调用 query_records 查询，不要凭对话记忆回答。
+7. 查询时，"今天""这个月""上周"这类说法要根据今天的日期换算成具体的 start_date 和 end_date。
+8. 查询分类时，用和记账时一样的分类名，比如用户说"吃饭"就查"餐饮"。
+9. 回答简洁，用中文。"""
 
 # ===== 第2段：工具说明书 =====
 tools = [
@@ -39,12 +46,30 @@ tools = [
                 "required": ["record_type", "amount", "category"],
             },
         },
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_records",
+            "description": "按条件查询记账记录，返回笔数、收入合计、支出合计和最近的记录。所有参数都可以不填，不填就是不限制",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "只查收入或只查支出"},
+                    "category": {"type": "string", "description": "分类，比如餐饮、交通"},
+                    "start_date": {"type": "string", "description": "开始日期，格式 YYYY-MM-DD，包含这一天"},
+                    "end_date": {"type": "string", "description": "结束日期，格式 YYYY-MM-DD，包含这一天"},
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 # 工具名 → 真正执行的函数
 TOOL_FUNCTIONS = {
     "add_record": add_record,#有括号就直接调用了所以不加
+    "query_records": query_records,
 }
 
 
@@ -120,6 +145,7 @@ def main():
         messages.append({"role": "user", "content": user_input})
         reply = chat(messages)
         print("助手：", reply)
+
 
 
 if __name__ == "__main__":
