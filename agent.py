@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-from db import init_db, add_record, query_records
+from db import init_db, add_record, query_records, update_record, delete_record
 
 load_dotenv()
 client = OpenAI(
@@ -26,7 +26,11 @@ SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收
 6. 用户问花了多少、记了几笔、某段时间的收支时，调用 query_records 查询，不要凭对话记忆回答。
 7. 查询时，"今天""这个月""上周"这类说法要根据今天的日期换算成具体的 start_date 和 end_date。
 8. 查询分类时，用和记账时一样的分类名，比如用户说"吃饭"就查"餐饮"。
-9. 回答简洁，用中文。"""
+9. 用户要修改或删除记录时，先调用 query_records 找到对应记录的 id，不要猜 id。
+10. 符合条件的记录不止一条时，把这几条列出来让用户选，不要自己挑一条。
+11. 删除前必须先把要删的记录告诉用户，等用户明确说"确认"或"是"之后，才调用 delete_record。用户说不删就放弃。
+12. 修改不需要确认，改完告诉用户改前和改后的内容。
+13. 回答简洁，用中文。"""
 
 # ===== 第2段：工具说明书 =====
 tools = [
@@ -64,12 +68,46 @@ tools = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_record",
+            "description": "修改一条已有的记录。只填要修改的字段，没填的字段保持不变。record_id 要先用 query_records 查出来",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "record_id": {"type": "integer", "description": "要修改的记录 id"},
+                    "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "新的类型"},
+                    "amount": {"type": "number", "description": "新的金额，必须大于0"},
+                    "category": {"type": "string", "description": "新的分类"},
+                    "remark": {"type": "string", "description": "新的备注"},
+                },
+                "required": ["record_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_record",
+            "description": "删除一条记录，删除后无法恢复。调用前必须已经得到用户确认。record_id 要先用 query_records 查出来",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "record_id": {"type": "integer", "description": "要删除的记录 id"},
+                },
+                "required": ["record_id"],
+            },
+        },
+    },
 ]
 
 # 工具名 → 真正执行的函数
 TOOL_FUNCTIONS = {
     "add_record": add_record,#有括号就直接调用了所以不加
     "query_records": query_records,
+    "update_record": update_record,
+    "delete_record": delete_record,
 }
 
 

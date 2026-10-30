@@ -79,14 +79,7 @@ def query_records(record_type=None, category=None, start_date=None, end_date=Non
     conn.close()
     records = [dict(row) for row in rows]
 
-    # ===== 下面你来写 =====
-    # 1. 遍历 records，分别累加收入合计 income_total 和支出合计 expense_total
-    #    （判断 record["record_type"] 是 "收入" 还是 "支出"）
-    # 2. 返回一个字典，包含：
-    #    "count": 一共几笔
-    #    "income_total": 收入合计
-    #    "expense_total": 支出合计
-    #    "records": 最后20条记录，写成 records[-20:]
+
     count = len(records)
     income_total = 0
     expense_total = 0
@@ -103,6 +96,66 @@ def query_records(record_type=None, category=None, start_date=None, end_date=Non
         "records": records[-20:],
     }
 
+def delete_record(record_id):
+    """删除一条记录。不存在时返回 error，成功时返回被删掉的那条"""
+    conn = get_db()
+    
+    row = conn.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
+    
+    if row is None:
+        conn.close()
+        return {"error": "没有这条记录"}
+
+    conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
+
+    return {"deleted": dict(row)}
+
+def update_record(record_id, record_type=None, amount=None, category=None, remark=None):
+    """修改一条记录。只改传进来的字段，没传的不动"""
+
+    if record_type is not None and record_type not in ("收入", "支出"):
+        return {"error": "类型必须为收入或支出"}
+
+    if amount is not None and amount <= 0:
+        return {"error": "金额需大于零"}
+
+    
+
+    fields = []
+    params = []
+    if record_type is not None:
+        fields.append("record_type = ?")
+        params.append(record_type)
+    if amount is not None:
+        fields.append("amount = ?")
+        params.append(amount)
+    if category is not None:
+        fields.append("category = ?")
+        params.append(category)
+    if remark is not None:
+        fields.append("remark = ?")
+        params.append(remark)
+
+    if not fields:
+        return {"error": "没有要修改的内容"}
+
+    params.append(record_id)  # 最后一个 ? 是 WHERE id = ?，所以 id 放在最后
+    sql = "UPDATE records SET " + ", ".join(fields) + " WHERE id = ?"#update是用，连接不用AND+
+
+    conn = get_db()
+    cursor = conn.execute(sql, params)
+
+    if cursor.rowcount == 0:
+        conn.close()#返回前都必须关闭数据库
+        return{"error": "没有这条记录"}
+    
+    conn.commit()
+    row = conn.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
 
 def print_result(title, result):
     """测试用：先打印汇总，再把每条记录分行打印"""
@@ -118,8 +171,19 @@ def print_result(title, result):
 
 if __name__ == "__main__":
     init_db()
+
+    new = add_record("支出", 10, "其他", "测试用")
+    test_id = new["id"]
+    print("新增：", new)
+
+    print("改金额：", update_record(test_id, amount=15))
+    print("改分类和备注：", update_record(test_id, category="购物", remark="改过了"))
+    print("什么都不改：", update_record(test_id))
+    print("金额为0：", update_record(test_id, amount=0))
+    print("不存在的id：", update_record(9999, amount=20))
+
+    print("删除：", delete_record(test_id))
+    print("再删一次：", delete_record(test_id))
+
     print_result("全部", query_records())
-    print_result("餐饮", query_records(category="餐饮"))
-    print_result("收入", query_records(record_type="收入"))
-    print_result("本月", query_records(start_date="2026-10-01", end_date="2026-10-31"))
-    print_result("没有的分类", query_records(category="不存在"))
+
