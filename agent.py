@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-from db import init_db, add_record, query_records, update_record, delete_record
+from db import init_db, add_record, query_records, update_record, delete_record, get_record
 
 load_dotenv()
 client = OpenAI(
@@ -28,7 +28,7 @@ SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收
 8. 查询分类时，用和记账时一样的分类名，比如用户说"吃饭"就查"餐饮"。
 9. 用户要修改或删除记录时，先调用 query_records 找到对应记录的 id，不要猜 id。
 10. 符合条件的记录不止一条时，把这几条列出来让用户选，不要自己挑一条。
-11. 删除前必须先把要删的记录告诉用户，等用户明确说"确认"或"是"之后，才调用 delete_record。用户说不删就放弃。
+11. 删除时，用 query_records 找到唯一对应的记录后，直接调用 delete_record，不用在对话里先问用户。程序会在执行前自动向用户确认。如果工具返回用户取消，就告诉用户这笔记录已保留。
 12. 修改不需要确认，改完告诉用户改前和改后的内容。
 13. 回答简洁，用中文。"""
 
@@ -90,7 +90,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "delete_record",
-            "description": "删除一条记录，删除后无法恢复。调用前必须已经得到用户确认。record_id 要先用 query_records 查出来",
+            "description": "删除一条记录，删除后无法恢复。程序会在执行前自动向用户确认，调用前不需要先问用户。record_id 要先用 query_records 查出来",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -110,21 +110,44 @@ TOOL_FUNCTIONS = {
     "delete_record": delete_record,
 }
 
+NEED_CONFIRM = {"delete_record"}#删除操作是需要确认的
+
+
+def confirm_with_user(args):
+    """危险操作执行前，由程序直接问用户。返回 True 表示同意执行"""
+    record = get_record(args.get("record_id"))
+    if record is None:
+        return True  # 记录不存在，交给 delete_record 自己返回"没有这条记录"
+    print(f"  [需要确认] 即将删除：#{record['id']} {record['created_at']} "
+          f"{record['record_type']} {record['amount']}元 {record['category']} {record['remark']}")
+    answer = input("  确认删除？(y/n)：").strip().lower()
+    return answer == "y"#answer == "y"本来就是true或者false
 
 # ===== 第3段：执行一次工具调用 =====
+
 def run_tool(call):
     name = call.function.name
-    args = json.loads(call.function.arguments)  # JSON字符串 → 字典
-    print(f"  [调用工具] {name} {args}")
+    print(f"  [调用工具] {name} {call.function.arguments}")
 
-    func = TOOL_FUNCTIONS.get(name)
-    if func is None:
-        result = {"error": f"没有这个工具：{name}"}
-    else:
-        result = func(**args)  # 把字典拆成关键字参数传进去
+    try:
+        # 有的模型在没有参数时返回空字符串，当成 {} 处理
+        args = json.loads(call.function.arguments or "{}")# JSON字符串 → 字典
+        func = TOOL_FUNCTIONS.get(name)
+        if func is None:
+            result = {"error": f"没有这个工具：{name}"}
+        elif name in NEED_CONFIRM and not confirm_with_user(args):
+            result = {"error": "用户取消了这次删除，记录没有删除"}
+        else:
+            result = func(**args)# 把字典拆成关键字参数传进去
+    except json.JSONDecodeError:
+        result = {"error": "参数不是合法的JSON，请按说明书的格式重新调用"}
+    except TypeError as e:
+        result = {"error": f"参数不对：{e}"}
+    except Exception as e:
+        result = {"error": f"工具执行出错：{e}"}
 
     print(f"  [工具结果] {result}")
-    return json.dumps(result, ensure_ascii=False)  # 字典 → JSON字符串 false是保证中文不会被转成 \u5f20 这种编码
+    return json.dumps(result, ensure_ascii=False)# 字典 → JSON字符串 false是保证中文不会被转成 \u5f20 这种编码
 
 
 

@@ -156,6 +156,17 @@ def update_record(record_id, record_type=None, amount=None, category=None, remar
     conn.close()
     return dict(row)
 
+def get_record(record_id):
+    """按 id 取一条记录。找到返回字典，找不到返回 None"""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    else:
+        return dict(row)
+     
+
 
 def print_result(title, result):
     """测试用：先打印汇总，再把每条记录分行打印"""
@@ -166,24 +177,8 @@ def print_result(title, result):
               f"{record['amount']}元 {record['category']} {record['remark']}")
     print()
 
-#if __name__ == "__main__":#测试函数，别的程序import的时候只会拿到之前的内容，不会拿到init_db()
-#    init_db()
-
 if __name__ == "__main__":
     init_db()
-
-    new = add_record("支出", 10, "其他", "测试用")
-    test_id = new["id"]
-    print("新增：", new)
-
-    print("改金额：", update_record(test_id, amount=15))
-    print("改分类和备注：", update_record(test_id, category="购物", remark="改过了"))
-    print("什么都不改：", update_record(test_id))
-    print("金额为0：", update_record(test_id, amount=0))
-    print("不存在的id：", update_record(9999, amount=20))
-
-    print("删除：", delete_record(test_id))
-    print("再删一次：", delete_record(test_id))
-
     print_result("全部", query_records())
+
 
