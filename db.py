@@ -20,6 +20,13 @@ def init_db():#建表已存在就跳过
             created_at TEXT NOT NULL
         )
     """)
+    #一张存预算的表
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS budgets (
+            category TEXT PRIMARY KEY,
+            amount REAL NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -47,7 +54,15 @@ def add_record(record_type, amount, category, remark=""):#remark不传就默认�
     conn.commit()
     conn.close()
 
-    return {"id": new_id, "record_type": record_type, "amount": amount, "category": category, "remark": remark, "created_at": created_at}
+    record = {"id": new_id, "record_type": record_type, "amount": amount,
+              "category": category, "remark": remark, "created_at": created_at}
+
+    if record_type == "支出":#有预算信息要加上
+        status = get_budget_status(category)
+        if status is not None:
+            record["budget"] = status
+
+    return record
     #return所有数据的原因是要返回给大模型，大模型要知道你存了些什么才好给你交代
 
 
@@ -165,7 +180,56 @@ def get_record(record_id):
         return None
     else:
         return dict(row)
-     
+
+def set_budget(category, amount):
+    """设置某个分类的每月预算，已经有了就覆盖。返回本月的预算状态和原来的预算"""
+    if amount <= 0:
+        return {"error": "预算金额必须大于0"}
+
+    conn = get_db()
+    old = conn.execute("SELECT amount FROM budgets WHERE category = ?", (category,)).fetchone()
+    conn.execute("""
+        INSERT INTO budgets (category, amount) VALUES (?, ?)
+        ON CONFLICT(category) DO UPDATE SET amount = excluded.amount
+    """, (category, amount))
+    conn.commit()
+    conn.close()
+
+    status = get_budget_status(category)
+    status["old_budget"] = old["amount"] if old is not None else None
+    return status
+
+
+def get_budget_status(category):
+    """查某个分类本月的预算使用情况。没设预算就返回 None"""
+    month_start = datetime.now().strftime("%Y-%m-01")  # 本月1号，比如 2026-11-01
+    conn = get_db()
+
+    row = conn.execute("SELECT amount FROM budgets WHERE category = ?", (category,)).fetchone()
+    if row is None:
+        conn.close()
+        return None
+
+    expense = conn.execute("SELECT sum(amount) FROM records WHERE record_type = ? AND category = ? AND date(created_at) >= ?",("支出", category, month_start)).fetchone()[0] or 0
+    conn.close()
+
+    remaining = round(row["amount"] - expense, 2)
+    return {"category": category, "monthly_budget": row["amount"], "spent": expense, "remaining": remaining, "over_budget": remaining < 0}
+
+    
+
+def list_budgets():
+    """列出所有预算和本月的使用情况"""
+
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM budgets ORDER BY category").fetchall()
+    conn.close()
+    result = []
+    for row in rows:
+        result.append(get_budget_status(row["category"]))
+    return {"budgets": result}
+
+
 
 
 def print_result(title, result):

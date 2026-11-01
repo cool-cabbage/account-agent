@@ -3,7 +3,8 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-from db import init_db, add_record, query_records, update_record, delete_record, get_record
+from db import (init_db, add_record, query_records, update_record,
+                delete_record, get_record, set_budget, list_budgets)
 
 load_dotenv()
 client = OpenAI(
@@ -30,7 +31,10 @@ SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收
 10. 符合条件的记录不止一条时，把这几条列出来让用户选，不要自己挑一条。
 11. 删除时，用 query_records 找到唯一对应的记录后，直接调用 delete_record，不用在对话里先问用户。程序会在执行前自动向用户确认。如果工具返回用户取消，就告诉用户这笔记录已保留。
 12. 修改不需要确认，改完告诉用户改前和改后的内容。
-13. 回答简洁，用中文。"""
+13. 用户设置或修改某个分类的每月预算时，调用 set_budget，分类名和记账时用的一样。用户没说是哪个分类时，先问清楚，不要根据上文猜。
+14. 用户问预算还剩多少、有没有超支时，调用 list_budgets。
+15. add_record 的结果里有 budget 时，记账回复里要顺便说本月这个分类已花多少、还剩多少；over_budget 为 true 时，提醒用户已经超支多少。
+16. 回答简洁，用中文。"""
 
 # ===== 第2段：工具说明书 =====
 tools = [
@@ -100,6 +104,33 @@ tools = [
             },
         },
     },
+     {
+        "type": "function",
+        "function": {
+            "name": "set_budget",
+            "description": "设置某个分类的每月预算，已经设置过就覆盖成新金额",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "description": "分类，比如餐饮、交通"},
+                    "amount": {"type": "number", "description": "每月预算金额，必须大于0"},
+                },
+                "required": ["category", "amount"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_budgets",
+            "description": "列出所有设置了预算的分类，以及本月已花、剩余、是否超支",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 # 工具名 → 真正执行的函数
@@ -108,6 +139,8 @@ TOOL_FUNCTIONS = {
     "query_records": query_records,
     "update_record": update_record,
     "delete_record": delete_record,
+    "set_budget": set_budget,
+    "list_budgets": list_budgets,
 }
 
 NEED_CONFIRM = {"delete_record"}#删除操作是需要确认的
