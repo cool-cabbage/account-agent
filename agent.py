@@ -146,30 +146,17 @@ TOOL_FUNCTIONS = {
 NEED_CONFIRM = {"delete_record"}#删除操作是需要确认的
 
 
-def confirm_with_user(args):
-    """危险操作执行前，由程序直接问用户。返回 True 表示同意执行"""
-    record = get_record(args.get("record_id"))
-    if record is None:
-        return True  # 记录不存在，交给 delete_record 自己返回"没有这条记录"
-    print(f"  [需要确认] 即将删除：#{record['id']} {record['created_at']} "
-          f"{record['record_type']} {record['amount']}元 {record['category']} {record['remark']}")
-    answer = input("  确认删除？(y/n)：").strip().lower()
-    return answer == "y"#answer == "y"本来就是true或者false
-
 # ===== 第3段：执行一次工具调用 =====
 
-def run_tool(call):
-    name = call.function.name
-    print(f"  [调用工具] {name} {call.function.arguments}")
+def run_tool(name, arguments):
+    print(f"  [调用工具] {name} {arguments}")
 
     try:
         # 有的模型在没有参数时返回空字符串，当成 {} 处理
-        args = json.loads(call.function.arguments or "{}")# JSON字符串 → 字典
+        args = json.loads(arguments or "{}")# JSON字符串 → 字典
         func = TOOL_FUNCTIONS.get(name)
         if func is None:
             result = {"error": f"没有这个工具：{name}"}
-        elif name in NEED_CONFIRM and not confirm_with_user(args):
-            result = {"error": "用户取消了这次删除，记录没有删除"}
         else:
             result = func(**args)# 把字典拆成关键字参数传进去
     except json.JSONDecodeError:
@@ -182,26 +169,34 @@ def run_tool(call):
     print(f"  [工具结果] {result}")
     return json.dumps(result, ensure_ascii=False)# 字典 → JSON字符串 false是保证中文不会被转成 \u5f20 这种编码
 
-
+def confirm_with_user(args):
+    """危险操作执行前，由程序直接问用户。返回 True 表示同意执行"""
+    record = get_record(args.get("record_id"))
+    if record is None:
+        return True  # 记录不存在，交给 delete_record 自己返回"没有这条记录"
+    print(f"  [需要确认] 即将删除：#{record['id']} {record['created_at']} "
+          f"{record['record_type']} {record['amount']}元 {record['category']} {record['remark']}")
+    answer = input("  确认删除？(y/n)：").strip().lower()
+    return answer == "y"#answer == "y"本来就是true或者false
 
 # ===== 第4段：处理一轮对话 =====
+
 def chat(messages):
     # 最多和模型来回5次，防止它一直调用工具停不下来
-    for _ in range(5):#'_'表示i，但这个循环用不到
+    for _ in range(5):
+        #把会话和工具说明书都发给模型
         response = client.chat.completions.create(
             model=MODEL,
             messages=messages,
-            tools=tools,
+            tools=tools
         )
-        message = response.choices[0].message
+        #得到的返回message可能是一句话或者要调用工具
+        message=response.choices[0].message
 
-        # 情况1：模型不调用工具，直接回复 → 这一轮结束
         if not message.tool_calls:
-            messages.append({"role": "assistant", "content": message.content})
-            return message.content
+            messages.append({"role": "assistant", "content": message.content})#没有工具请求就把回复的话加入messages
+            return {"type": "reply", "content": message.content}   #返回字典
 
-        # 情况2：模型想调用工具
-        # 先把"模型想调用什么"这条消息加进对话
         messages.append({
             "role": "assistant",
             "content": message.content,
@@ -213,17 +208,36 @@ def chat(messages):
                 }
                 for call in message.tool_calls
             ],
-        })
-        # 再逐个执行，把结果加进对话
+        }) 
+
+        pending = None
         for call in message.tool_calls:
-            result = run_tool(call)
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
-        # 回到循环开头，带着工具结果再问一次模型
+            if call.function.name in NEED_CONFIRM:
+                if pending is None:
+                    pending={"tool_call_id": call.id, "name": call.function.name, "arguments": call.function.arguments}
+                else:
+                    messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps({"error": "一次只能删除一条，请等这条处理完再删下一条"}, ensure_ascii=False)})
+            else:
+                result = run_tool(call.function.name, call.function.arguments)
+                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
 
-    return "工具调用次数太多，已停止。"
+        if pending is not None:
+            return {"type": "confirm", "pending": pending}#type是confirm则会问用户
+
+    return {"type": "reply", "content": "工具调用次数太多，已停止。"}   
 
 
-# ===== 第5段：主程序 =====
+def resume_chat(messages, pending, approved):#approved是用户同意标志
+    if approved:
+        result = run_tool(pending["name"], pending["arguments"])        # 从便签上取名字和参数
+    else:
+        result = json.dumps({"error": "用户取消了这次删除，记录没有删除"}, ensure_ascii=False)
+
+    messages.append({"role": "tool", "tool_call_id": pending["tool_call_id"], "content": result})   # id 也从便签上取
+    return chat(messages)
+
+
+# ===== 第5段：主程序 ===== 
 def main():
     init_db()
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -237,8 +251,16 @@ def main():
             continue
 
         messages.append({"role": "user", "content": user_input})
-        reply = chat(messages)
-        print("助手：", reply)
+        result = chat(messages)
+
+        while result["type"] == "confirm":
+            pending = result["pending"]
+            args = json.loads(pending["arguments"])              # 提示：confirm_with_user 要的是字典，便签里的参数是字符串
+            approved = confirm_with_user(args)   # 打印要删的记录，问 y/n，返回 True 或 False
+            result = resume_chat(messages, pending, approved)
+
+        print("助手：", result["content"])
+
 
 
 
