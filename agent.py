@@ -34,7 +34,8 @@ SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收
 13. 用户设置或修改某个分类的每月预算时，调用 set_budget，分类名和记账时用的一样。用户没说是哪个分类时，先问清楚，不要根据上文猜。
 14. 用户问预算还剩多少、有没有超支时，调用 list_budgets。
 15. add_record 的结果里有 budget 时，记账回复里要顺便说本月这个分类已花多少、还剩多少；over_budget 为 true 时，提醒用户已经超支多少。
-16. 回答简洁，用中文。"""
+16.工具返回记录不存在时，要如实告诉用户，这条记录已经不存在（可能已在别处删除），不能说成是自己删除的。
+17. 回答简洁，用中文。"""
 
 # ===== 第2段：工具说明书 =====
 tools = [
@@ -196,7 +197,7 @@ def chat(messages):
         if not message.tool_calls:
             messages.append({"role": "assistant", "content": message.content})#没有工具请求就把回复的话加入messages
             return {"type": "reply", "content": message.content}   #返回字典
-
+        #调用chat的时候就会自动存入messages了
         messages.append({
             "role": "assistant",
             "content": message.content,
@@ -220,7 +221,7 @@ def chat(messages):
             else:
                 result = run_tool(call.function.name, call.function.arguments)
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
-
+        
         if pending is not None:
             return {"type": "confirm", "pending": pending}#type是confirm则会问用户
 

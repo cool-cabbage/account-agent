@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from datetime import datetime
 
 DB_PATH = "records.db"
@@ -25,6 +26,13 @@ def init_db():#建表已存在就跳过
         CREATE TABLE IF NOT EXISTS budgets (
             category TEXT PRIMARY KEY,
             amount REAL NOT NULL
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            messages TEXT NOT NULL,
+            pending TEXT
         )
     """)
     conn.commit()
@@ -229,6 +237,31 @@ def list_budgets():
         result.append(get_budget_status(row["category"]))
     return {"budgets": result}
 
+def save_session(sid, messages, pending):
+    """存一个会话，存在就覆盖"""
+    messages_text = json.dumps(messages, ensure_ascii=False)
+    pending_text = json.dumps(pending, ensure_ascii=False) if pending is not None else None
+
+    conn = get_db()
+    conn.execute("INSERT INTO sessions (id, messages, pending) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET messages = excluded.messages, pending = excluded.pending", (sid, messages_text, pending_text))
+    #excluded是指被传入的那一行
+    conn.commit()
+    conn.close()
+
+def load_session(sid):
+    """取出sessions里面的内容"""
+
+    conn = get_db()
+    row = conn.execute("SELECT messages,pending FROM sessions WHERE id = ?", (sid,)).fetchone()
+    conn.close()
+    if row is None:
+        return None
+
+    messages = json.loads(row["messages"])
+    pending = None if row["pending"] is None else json.loads(row["pending"])
+
+    return {"messages": messages, "pending": pending}
+
 
 
 
@@ -241,8 +274,15 @@ def print_result(title, result):
               f"{record['amount']}元 {record['category']} {record['remark']}")
     print()
 
+#if __name__ == "__main__":
+#    init_db()
+#    print_result("全部", query_records())
+
 if __name__ == "__main__":
     init_db()
-    print_result("全部", query_records())
+    save_session("test1", [{"role": "user", "content": "你好"}], None)
+    print(load_session("test1"))
 
-
+    save_session("test1", [{"role": "user", "content": "你好"}], {"name": "delete_record"})
+    print(load_session("test1"))
+    print(load_session("11"))

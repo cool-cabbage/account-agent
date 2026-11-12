@@ -1,6 +1,9 @@
+import uuid
+import json
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from db import init_db, list_budgets, query_records, add_record, update_record, delete_record, get_record
+from db import init_db, list_budgets, query_records, add_record, update_record, delete_record, get_record, load_session, save_session
+from agent import chat, SYSTEM_PROMPT, resume_chat
 
 app = FastAPI(title="记账 Agent API")   # 样板：创建那张"网址 → 函数"的表 fastapi做的就是查表调函数转JSON
 
@@ -71,3 +74,72 @@ def remove_record(record_id: int):
         raise HTTPException(status_code=404, detail=result["error"])
 
     return result
+
+
+
+class ChatIn(BaseModel):
+    message: str
+    session_id: str | None = None      # 第一次不带，服务器会发一个
+
+def build_response(rid, messages, respond):
+    if respond["type"]=="reply":#如果不需要请求用户确认
+        save_session(rid, messages, None)
+        return {"session_id": rid, "type": "reply", "reply": respond["content"]}#网页的返回
+    #下面是需要确认
+    pending=respond["pending"]#存入pending
+    save_session(rid, messages, pending)
+    record=get_record(json.loads(pending["arguments"])["record_id"])#查询
+    return {"session_id": rid, "type": "confirm", "record": record}
+
+
+
+@app.post("/chat")
+def chat_api(body: ChatIn):
+    rid = body.session_id
+
+    if rid is None:
+        #新会话
+        rid=str(uuid.uuid4())
+        messages=[{"role": "system", "content": SYSTEM_PROMPT}]#相当于初始化messages
+        pending=None
+    else:
+        # 旧会话
+        session=load_session(rid)#有rid就是旧会话，要读取
+
+        if session is None:
+            raise HTTPException(status_code=404, detail="没有该会话")
+        
+        messages=session["messages"]
+        pending=session["pending"]
+
+    if pending is not None:
+        raise HTTPException(status_code=409, detail="有待确认的删除，请先确认或取消")
+
+    messages.append({"role": "user", "content": body.message})
+    respond=chat(messages)
+    return build_response(rid, messages, respond)
+
+
+class ConfirmIn(BaseModel):
+    session_id: str
+    approved: bool
+
+
+@app.post("/chat/confirm")
+def chat_confirm(body: ConfirmIn):
+    rid = body.session_id
+
+    session=load_session(rid)
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="该会话不存在")
+
+    messages=session["messages"]
+    pending=session["pending"]
+
+    if pending is None:
+        raise HTTPException(status_code=409, detail="没有待确认的删除")
+
+    respond=resume_chat(messages, pending, body.approved)
+    return build_response(rid, messages, respond)
+
