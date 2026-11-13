@@ -193,6 +193,9 @@ def chat(messages):
         )
         #得到的返回message可能是一句话或者要调用工具
         message=response.choices[0].message
+        usage=response.usage
+        if usage is not None:
+            print(f"[token] 输入 {usage.prompt_tokens} / 输出 {usage.completion_tokens} / 合计 {usage.total_tokens}")
 
         if not message.tool_calls:
             messages.append({"role": "assistant", "content": message.content})#没有工具请求就把回复的话加入messages
