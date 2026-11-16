@@ -35,7 +35,8 @@ SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收
 14. 用户问预算还剩多少、有没有超支时，调用 list_budgets。
 15. add_record 的结果里有 budget 时，记账回复里要顺便说本月这个分类已花多少、还剩多少；over_budget 为 true 时，提醒用户已经超支多少。
 16.工具返回记录不存在时，要如实告诉用户，这条记录已经不存在（可能已在别处删除），不能说成是自己删除的。
-17. 回答简洁，用中文。"""
+17.看到工具结果已省略时，如果需要其中的数据，就重新调用工具查询，不要凭记忆回答。
+18. 回答简洁，用中文。"""
 
 # ===== 第2段：工具说明书 =====
 tools = [
@@ -146,6 +147,70 @@ TOOL_FUNCTIONS = {
 
 NEED_CONFIRM = {"delete_record"}#删除操作是需要确认的
 
+OMITTED = json.dumps({"note": "旧结果已省略，需要时请重新调用工具查询"}, ensure_ascii=False)#替换旧工具结果的占位文字，也用来判断是否已替换
+MAX_TURNS = 10
+SUMMARY_PREFIX = "【之前对话的摘要】" #判断是否是摘要就看有没有这个前缀
+CONTEXT_MANAGE = True
+
+def shrink_old_tool_results(messages, keep_turns=2):
+    """最近 keep_turns 轮之前的 tool 结果换成占位文字，直接修改传进来的列表"""
+    user_idx=[]
+    for i in range(0, len(messages)):
+        if messages[i]["role"]=="user":
+            user_idx.append(i)
+
+    if len(user_idx)<=keep_turns:#轮数过少无需省略
+        return
+    
+    boundary=user_idx[-keep_turns]
+
+    for i in range(0, boundary):
+        if messages[i]["role"]=="tool" and messages[i]["content"]!=OMITTED:
+            messages[i]["content"]=OMITTED
+
+
+def trim_old_turns(messages, max_turns=MAX_TURNS):
+    """只保留 system 和最近 max_turns 轮，直接修改传进来的列表。
+    返回被删掉的那些消息（检查点 C 要拿它们做摘要），没删就返回空列表。"""
+
+    user_idx=[]
+    for i in range(0, len(messages)):
+        if messages[i]["role"]=="user":
+            user_idx.append(i)
+
+    if len(user_idx)<=max_turns:
+        return []
+
+    boundary=user_idx[-max_turns]
+    removed=messages[1:boundary]
+
+    del messages[1:boundary]
+
+    return removed
+
+
+def summarize_turns(removed):
+    """把被裁掉的消息压成一段摘要，返回摘要文字"""
+
+    prev_content=""
+    for m in removed:
+        if m["role"] in ("system", "user", "assistant") and m["content"]:
+            prev_content+=f"{m['role']}: {m['content']}\n" 
+
+    response=client.chat.completions.create(model=MODEL, messages=[{"role": "system", "content": "把下面的对话压缩成几句话，保留人名、金额、日期和用户明确说过的事实"}, 
+              {"role": "user", "content": prev_content}])
+
+    usage=response.usage
+    if usage is not None:
+        print(f"[token]输入:{usage.prompt_tokens} / 输出:{usage.completion_tokens} / 合计:{usage.total_tokens}")
+
+    return response.choices[0].message.content
+
+def add_summary(messages, removed):
+    """把被裁掉的消息压成摘要，插在 system 之后"""
+
+    text=summarize_turns(removed)
+    messages.insert(1, {"role": "system", "content": SUMMARY_PREFIX+text})
 
 # ===== 第3段：执行一次工具调用 =====
 
@@ -183,6 +248,15 @@ def confirm_with_user(args):
 # ===== 第4段：处理一轮对话 =====
 
 def chat(messages):
+    if CONTEXT_MANAGE:
+        #把messages裁剪
+        removed=trim_old_turns(messages)
+        if removed:
+            print(f"[裁剪]删掉{len(removed)}条")
+            add_summary(messages, removed)
+        #先把messages瘦身
+            shrink_old_tool_results(messages)
+            print("[摘要]已生成")
     # 最多和模型来回5次，防止它一直调用工具停不下来
     for _ in range(5):
         #把会话和工具说明书都发给模型
