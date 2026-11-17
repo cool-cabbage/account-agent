@@ -5,11 +5,30 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from db import (init_db, add_record, query_records, update_record,
                 delete_record, get_record, set_budget, list_budgets)
+import logging
+import time
+
+logging.basicConfig(
+    level=logging.INFO,                                      # INFO 及以上的级别都记录
+    format="%(asctime)s %(levelname)s %(message)s",           # 每行格式：时间 级别 内容
+    handlers=[
+        logging.FileHandler("agent.log", encoding="utf-8"),  # 写进文件，encoding 保证中文不乱码
+        logging.StreamHandler(),                             # 同时输出到终端
+    ],
+)
+logger = logging.getLogger("agent")
+
 
 load_dotenv()
+
+MODEL_TIMEOUT_SECONDS = 60#规定请求超时时间
+MODEL_MAX_RETRIES = 2#规定最多重试次数
+
 client = OpenAI(
     api_key=os.getenv("API_KEY"),
     base_url=os.getenv("BASE_URL"),
+    timeout=MODEL_TIMEOUT_SECONDS,
+    max_retries=MODEL_MAX_RETRIES,
 )
 MODEL = os.getenv("MODEL")
 
@@ -146,6 +165,8 @@ TOOL_FUNCTIONS = {
 }
 
 NEED_CONFIRM = {"delete_record"}#删除操作是需要确认的
+READ_ONLY_TOOLS = {"query_records", "list_budgets"}#哪些工具是只读的
+MAX_STEPS = 5#这是chat里的loop循环最多次数，也就是一次请求调用工具最多次数
 
 OMITTED = json.dumps({"note": "旧结果已省略，需要时请重新调用工具查询"}, ensure_ascii=False)#替换旧工具结果的占位文字，也用来判断是否已替换
 MAX_TURNS = 10
@@ -202,7 +223,7 @@ def summarize_turns(removed):
 
     usage=response.usage
     if usage is not None:
-        print(f"[token]输入:{usage.prompt_tokens} / 输出:{usage.completion_tokens} / 合计:{usage.total_tokens}")
+        logger.info(f"[token-摘要]输入:{usage.prompt_tokens} / 输出:{usage.completion_tokens} / 合计:{usage.total_tokens}")
 
     return response.choices[0].message.content
 
@@ -215,8 +236,9 @@ def add_summary(messages, removed):
 # ===== 第3段：执行一次工具调用 =====
 
 def run_tool(name, arguments):
-    print(f"  [调用工具] {name} {arguments}")
+    logger.info(f"[调用工具] {name} {arguments}")
 
+    start_time=time.perf_counter()
     try:
         # 有的模型在没有参数时返回空字符串，当成 {} 处理
         args = json.loads(arguments or "{}")# JSON字符串 → 字典
@@ -226,13 +248,19 @@ def run_tool(name, arguments):
         else:
             result = func(**args)# 把字典拆成关键字参数传进去
     except json.JSONDecodeError:
+        logger.error(f"[工具调用错误]{name}参数不是合法的JSON")
         result = {"error": "参数不是合法的JSON，请按说明书的格式重新调用"}
     except TypeError as e:
+        logger.error(f"[工具调用错误]{name}参数不对{e}")
         result = {"error": f"参数不对：{e}"}
     except Exception as e:
+        logger.error(f"[工具调用错误]{name}工具执行出错{e}")
         result = {"error": f"工具执行出错：{e}"}
 
-    print(f"  [工具结果] {result}")
+    end_time=time.perf_counter()
+    use_time=end_time-start_time
+
+    logger.info(f"[工具结果] {name} 耗时 {round(1000*use_time)}ms {result}")
     return json.dumps(result, ensure_ascii=False)# 字典 → JSON字符串 false是保证中文不会被转成 \u5f20 这种编码
 
 def confirm_with_user(args):
@@ -252,13 +280,16 @@ def chat(messages):
         #把messages裁剪
         removed=trim_old_turns(messages)
         if removed:
-            print(f"[裁剪]删掉{len(removed)}条")
+            logger.info(f"[裁剪]删掉{len(removed)}条")
             add_summary(messages, removed)
+            logger.info("[摘要]已生成")
         #先把messages瘦身
-            shrink_old_tool_results(messages)
-            print("[摘要]已生成")
+        shrink_old_tool_results(messages)
+
+    seen=set()
+
     # 最多和模型来回5次，防止它一直调用工具停不下来
-    for _ in range(5):
+    for _ in range(MAX_STEPS):
         #把会话和工具说明书都发给模型
         response = client.chat.completions.create(
             model=MODEL,
@@ -269,7 +300,7 @@ def chat(messages):
         message=response.choices[0].message
         usage=response.usage
         if usage is not None:
-            print(f"[token] 输入 {usage.prompt_tokens} / 输出 {usage.completion_tokens} / 合计 {usage.total_tokens}")
+            logger.info(f"[token] 输入 {usage.prompt_tokens} / 输出 {usage.completion_tokens} / 合计 {usage.total_tokens}")
 
         if not message.tool_calls:
             messages.append({"role": "assistant", "content": message.content})#没有工具请求就把回复的话加入messages
@@ -294,15 +325,32 @@ def chat(messages):
                 if pending is None:
                     pending={"tool_call_id": call.id, "name": call.function.name, "arguments": call.function.arguments}
                 else:
-                    messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps({"error": "一次只能删除一条，请等这条处理完再删下一条"}, ensure_ascii=False)})
-            else:
-                result = run_tool(call.function.name, call.function.arguments)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+                    messages.append({"role": "tool", "tool_call_id": call.id, "content": {"error": "一次只能删除一条，请等这条处理完再删下一条"}})
+            
+            else:#don't need confirm
+                key=(call.function.name, call.function.arguments)
+                if call.function.name in READ_ONLY_TOOLS and key in seen:
+                    result=json.dumps({"error": "刚才已用相同参数查询过，结果在上文，请直接根据已有结果回答"}, ensure_ascii=False)
+                    logger.info(f"[重复调用]{call.function.name}")
+                else:
+                    result=run_tool(call.function.name, call.function.arguments)
+                    seen.add(key)
+                messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps(result, ensure_ascii=False)})#放进content里的必须是字符串
         
         if pending is not None:
             return {"type": "confirm", "pending": pending}#type是confirm则会问用户
+    #for循环结束
+    logger.info("[兜底]已到达最大步数，模型直接回答")
+    response=client.chat.completions.create(
+        model=MODEL,
+        messages=messages,
+        tools=tools,
+        tool_choice="none",
+    )
+    message=response.choices[0].message
+    messages.append({"role": "assistant", "content": message.content})
+    return {"type": "reply", "content": message.content}
 
-    return {"type": "reply", "content": "工具调用次数太多，已停止。"}   
 
 
 def resume_chat(messages, pending, approved):#approved是用户同意标志

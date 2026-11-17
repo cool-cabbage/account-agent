@@ -1,9 +1,12 @@
 import uuid
 import json
+import openai
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from db import init_db, list_budgets, query_records, add_record, update_record, delete_record, get_record, load_session, save_session
 from agent import chat, SYSTEM_PROMPT, resume_chat
+import logging
+logger = logging.getLogger("agent")
 
 app = FastAPI(title="记账 Agent API")   # 样板：创建那张"网址 → 函数"的表 fastapi做的就是查表调函数转JSON
 
@@ -126,8 +129,14 @@ def chat_api(body: ChatIn):
         raise HTTPException(status_code=409, detail="有待确认的删除，请先确认或取消")
 
     messages.append({"role": "user", "content": body.message})
-    respond=chat(messages)
+    try:
+        respond=chat(messages)
+    except openai.APIError as e:
+        logger.warning(f"[模型错误]{e}")
+        raise HTTPException(status_code=503, detail="模型服务暂时不可用，请稍后重试")
+
     return build_response(rid, messages, respond)
+
 
 
 class ConfirmIn(BaseModel):
@@ -150,6 +159,10 @@ def chat_confirm(body: ConfirmIn):
     if pending is None:
         raise HTTPException(status_code=409, detail="没有待确认的删除")
 
-    respond=resume_chat(messages, pending, body.approved)
+    try:
+        respond=resume_chat(messages, pending, body.approved)
+    except openai.APIError as e:
+        logger.warning(f"[模型错误]{e}")
+        raise HTTPException(status_code=503, detail="模型服务暂时不可用，请稍后重试")
     return build_response(rid, messages, respond)
 
