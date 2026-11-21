@@ -1,37 +1,30 @@
-import os
 import json
-from types import SimpleNamespace
-
-import db
-db.DB_PATH = "test_records.db"  # 换成测试数据库，不动你的真实数据
-
 from agent import run_tool
 
 
-def fake_call(name, arguments):
-    """造一个假的工具调用，结构和模型返回的 call 一样"""
-    return SimpleNamespace(function=SimpleNamespace(name=name, arguments=arguments))
+def test_bad_json():
+    """参数不是合法 JSON → 返回 error"""
+    result=json.loads(run_tool("query_records", "abc"))#run_tool里第二个参数是call发来的json字符串
+    assert "参数不是合法的" in result["error"]
+
+def test_wrong_args():
+    """参数名不对，比如给 list_budgets 传 {"x": 1} → 返回 error，提示参数不对"""
+    result=json.loads(run_tool("delete_record", '{"id": "bb"}'))
+    assert "参数不对" in result["error"]
+
+def test_unknown_tool():
+    """调用不存在的工具 → 返回 error，提示没有这个工具"""
+    result=json.loads(run_tool("abc", '{"re": "aaa"}'))
+    assert "没有这个工具" in result["error"]
 
 
-def run(title, name, arguments):
-    print(f"===== {title} =====")
-    run_tool(fake_call(name, arguments))
-    print()
+def test_negative_amount():
+    """add_record 金额是负数 → 返回 error"""
+    result=json.loads(run_tool("add_record", '{"record_type": "收入", "amount": -18, "category": "餐饮"}'))
+    assert "金额" in result["error"]
 
-
-if __name__ == "__main__":
-    db.init_db()
-
-    run("正常记账", "add_record",
-        json.dumps({"record_type": "支出", "amount": 25, "category": "餐饮"}, ensure_ascii=False))
-    run("参数名写错", "add_record",
-        json.dumps({"type": "支出", "amount": 25, "category": "餐饮"}, ensure_ascii=False))
-    run("金额是字符串", "add_record",
-        json.dumps({"record_type": "支出", "amount": "25", "category": "餐饮"}, ensure_ascii=False))
-    run("JSON格式坏了", "add_record", '{"record_type": "支出", "amount": 25')
-    run("空参数查询", "query_records", "")
-    run("不存在的工具", "send_money", "{}")
-    run("删除，输入 n", "delete_record", '{"record_id": 1}')
-    run("删除，输入 y", "delete_record", '{"record_id": 1}')
-
-    os.remove("test_records.db")  # 测完删掉测试数据库
+def test_add_then_query():
+    """记一笔账，再用 query_records 查，count 应该正好是 1"""
+    run_tool("add_record", '{"record_type": "支出", "amount": 18, "category": "餐饮"}')
+    row=json.loads(run_tool("query_records", '{}'))
+    assert row["count"]==1
