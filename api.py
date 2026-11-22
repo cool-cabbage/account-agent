@@ -5,6 +5,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from db import init_db, list_budgets, query_records, add_record, update_record, delete_record, get_record, load_session, save_session
 from agent import chat, SYSTEM_PROMPT, resume_chat
+from fastapi.responses import FileResponse
+
 import logging
 logger = logging.getLogger("agent")
 
@@ -23,9 +25,12 @@ init_db()
 #  ↓ 你的代码自己出 bug 崩了                         → 500（看终端里的 Traceback）
 #  ↓ 一切正常 → 200，新建成功是 201
 
-
 @app.get("/")
-def root():
+def index():
+    return FileResponse("index.html")
+
+@app.get("/health")
+def health():
     return {"status": "ok"}
 
 @app.get("/budgets")
