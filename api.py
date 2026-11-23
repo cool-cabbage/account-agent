@@ -1,16 +1,48 @@
 import uuid
 import json
 import openai
-from fastapi import FastAPI, HTTPException
+import os
+import secrets
+from datetime import date
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from db import init_db, list_budgets, query_records, add_record, update_record, delete_record, get_record, load_session, save_session
 from agent import chat, SYSTEM_PROMPT, resume_chat
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+
+
 
 import logging
 logger = logging.getLogger("agent")
 
 app = FastAPI(title="记账 Agent API")   # 样板：创建那张"网址 → 函数"的表 fastapi做的就是查表调函数转JSON
+
+
+APP_PASSWORD = os.getenv("APP_PASSWORD")             # 没设置就不检查（你本机自己用的情况）
+DAILY_LIMIT = int(os.getenv("DAILY_LIMIT", "100"))   # 每天最多发多少句
+chat_count = {"date": None, "count": 0}              # 记录今天已经发了几句（存在内存里，重启清零）
+
+
+@app.middleware("http")
+async def check_password(request: Request, call_next):
+    """设置了 APP_PASSWORD 时，除首页和 /health 外，每个请求都要带正确的口令"""
+    if APP_PASSWORD and request.url.path not in ("/", "/health"):
+        key = request.headers.get("X-Access-Key", "")
+        if not secrets.compare_digest(key.encode(), APP_PASSWORD.encode()):
+            return JSONResponse(status_code=401, content={"detail": "访问口令错误"})
+    return await call_next(request)
+
+
+def check_daily_limit():
+    """今天的次数用完了就返回 429"""
+    today = date.today().isoformat()
+    if chat_count["date"] != today:      # 换了一天，从 0 开始重新计数
+        chat_count["date"] = today
+        chat_count["count"] = 0
+    if chat_count["count"] >= DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail="今天的使用次数已用完，明天再试")
+    chat_count["count"] += 1
+
 
 #2：建表。提示见下面
 init_db()
@@ -113,6 +145,7 @@ def build_response(rid, messages, respond):
 
 @app.post("/chat")
 def chat_api(body: ChatIn):
+    check_daily_limit() 
     rid = body.session_id
 
     if rid is None:

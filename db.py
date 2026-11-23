@@ -1,8 +1,10 @@
 import sqlite3
 import json
+import os
 from datetime import datetime
 
-DB_PATH = "records.db"
+#DB_PATH = "records.db"
+DB_PATH = os.getenv("DB_PATH", "records.db")   # 没设置环境变量时，还是用 records.db
 
 def get_db():#连接数据库，sqlite3可以让查询结果可通过dict转化为字典
     conn = sqlite3.connect(DB_PATH)

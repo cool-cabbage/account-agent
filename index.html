@@ -44,15 +44,39 @@ function addMessage(text, cls) {
 
 
 // ===== 4. 发 POST 请求，返回 {status, data} =====
-async function postJSON(url, body) {
-  const resp = await fetch(url, {
+// 发请求时自动带上存好的口令
+function sendRequest(url, body) {
+  return fetch(url, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: {
+      "Content-Type": "application/json",
+      "X-Access-Key": localStorage.getItem("access_key") || "",
+    },
     body: JSON.stringify(body),
   });
+}
+
+async function postJSON(url, body) {
+  let resp = await sendRequest(url, body);
+
+  // 没有口令或口令错误：弹窗输入，再用新口令把这次请求重发一次
+  if (resp.status === 401) {
+    const key = window.prompt("请输入访问口令");
+    if (key) {
+      localStorage.setItem("access_key", key.trim());
+      resp = await sendRequest(url, body);
+    }
+  }
+
+  // 还是 401，说明输入的口令也不对，清掉它，下次重新弹窗
+  if (resp.status === 401) {
+    localStorage.removeItem("access_key");
+  }
+
   const data = await resp.json();
   return {status: resp.status, data: data};
 }
+
 
 
 // ===== 5. 把 /chat 或 /chat/confirm 的结果显示出来 =====

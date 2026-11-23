@@ -274,6 +274,10 @@ def confirm_with_user(args):
     return answer == "y"#answer == "y"本来就是true或者false
 
 # ===== 第4段：处理一轮对话 =====
+#chat 遇到删除：不执行，把 tool_call_id、工具名、参数存进便签；这一批调用全部处理完后，带着便签 return
+#不能一看到删除就 return：不然一次要调用多个工具其他工具还没用就return了
+#resume_chat：执行或取消，然后按 tool_call_id 补上 tool 结果，再调用一次 chat 接着跑
+#网页版里，处理 confirm 的循环在 JS 的 while 里；把会话存进库的是 api.py 的 build_response
 
 def chat(messages):
     if CONTEXT_MANAGE:
