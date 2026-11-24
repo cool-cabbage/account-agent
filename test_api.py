@@ -15,6 +15,8 @@ def test_model_timeout_returns_503(monkeypatch):
     api_client = TestClient(app)
 
     r1 = api_client.post("/chat", json={"message": "我叫大白菜"})#相当于在docs里发一次/chat
+    print(r1.status_code, r1.json())
+
     sid = r1.json()["session_id"]
     r2 = api_client.post("/chat", json={"message": "我叫什么", "session_id": sid})
 

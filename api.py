@@ -132,14 +132,34 @@ class ChatIn(BaseModel):
     session_id: str | None = None      # 第一次不带，服务器会发一个
 
 def build_response(rid, messages, respond):
-    if respond["type"]=="reply":#如果不需要请求用户确认
+    """把 chat 的结果打包成返回给浏览器的字典，并把会话写回数据库"""
+    if respond["type"] == "reply":                       # 不需要确认：直接回复
         save_session(rid, messages, None)
-        return {"session_id": rid, "type": "reply", "reply": respond["content"]}#网页的返回
-    #下面是需要确认
-    pending=respond["pending"]#存入pending
+        return {"session_id": rid, "type": "reply", "reply": respond["content"]}
+
+    # 需要确认：先把便签存进库
+    pending = respond["pending"]
     save_session(rid, messages, pending)
-    record=get_record(json.loads(pending["arguments"])["record_id"])#查询
-    return {"session_id": rid, "type": "confirm", "record": record}
+
+    # 1. 把参数字符串解析成字典；模型给的参数不是合法 JSON 时当成空字典，接口不能因此报 500
+    try:
+        args = json.loads(pending["arguments"] or "{}")
+    except json.JSONDecodeError:
+        args = {}
+
+    # 2. 参数里有 record_id 才去查记录；别的需要确认的工具可能没有这个参数
+    record_id = args.get("record_id")
+    record = get_record(record_id) if record_id is not None else None
+
+    # 3. 告诉前端要确认执行的是哪个工具、参数是什么，没有记录时也能显示
+    return {
+        "session_id": rid,
+        "type": "confirm",
+        "record": record,
+        "tool": pending["name"],
+        "arguments": args,
+    }
+
 
 
 

@@ -57,102 +57,100 @@ SYSTEM_PROMPT = f"""你是一个记账助手，帮用户记录和查询日常收
 17.看到工具结果已省略时，如果需要其中的数据，就重新调用工具查询，不要凭记忆回答。
 18. 回答简洁，用中文。"""
 
+# ===== 第1.5段：工具注册表 =====
+#做工具风险分级
+RISK_READ = "read"         # 只读
+RISK_WRITE = "write"       # 普通写入
+RISK_CONFIRM = "confirm"   # 需要用户确认
+
+TOOL_REGISTRY = {}   # 工具名 → {"func": 函数, "risk": 风险等级, "schema": 给模型看的说明书}
+
+
+def register_tool(func, risk, description, parameters):
+    """注册一个工具：函数、风险等级、说明书放在一起，loop 只按风险等级处理"""
+    if risk not in (RISK_READ, RISK_WRITE, RISK_CONFIRM):
+        raise ValueError(f"未知的风险等级：{risk}")
+    name = func.__name__
+    TOOL_REGISTRY[name] = {
+        "func": func,
+        "risk": risk,
+        "schema": {
+            "type": "function",
+            "function": {"name": name, "description": description, "parameters": parameters},
+        },
+    }
+
+
 # ===== 第2段：工具说明书 =====
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "add_record",
-            "description": "记录一笔收入或支出",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "收入还是支出"},
-                    "amount": {"type": "number", "description": "金额，单位元，必须大于0"},
-                    "category": {"type": "string", "description": "分类，比如餐饮、交通、生活费"},
-                    "remark": {"type": "string", "description": "备注，可以不填"},
-                },
-                "required": ["record_type", "amount", "category"],
-            },
-        },
+#注册工具
+
+register_tool(add_record, RISK_WRITE, "记录一笔收入或支出", {
+    "type": "object",
+    "properties": {
+        "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "收入还是支出"},
+        "amount": {"type": "number", "description": "金额，单位元，必须大于0"},
+        "category": {"type": "string", "description": "分类，比如餐饮、交通、生活费"},
+        "remark": {"type": "string", "description": "备注，可以不填"},
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "query_records",
-            "description": "按条件查询记账记录，返回笔数、收入合计、支出合计和最近的记录。所有参数都可以不填，不填就是不限制",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "只查收入或只查支出"},
-                    "category": {"type": "string", "description": "分类，比如餐饮、交通"},
-                    "start_date": {"type": "string", "description": "开始日期，格式 YYYY-MM-DD，包含这一天"},
-                    "end_date": {"type": "string", "description": "结束日期，格式 YYYY-MM-DD，包含这一天"},
-                },
-                "required": [],
-            },
-        },
+    "required": ["record_type", "amount", "category"],
+})
+
+register_tool(query_records, RISK_READ, "按条件查询记账记录，返回笔数、收入合计、支出合计和最近的记录。所有参数都可以不填，不填就是不限制", {
+    "type": "object",
+    "properties": {
+        "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "只查收入或只查支出"},
+        "category": {"type": "string", "description": "分类，比如餐饮、交通"},
+        "start_date": {"type": "string", "description": "开始日期，格式 YYYY-MM-DD，包含这一天"},
+        "end_date": {"type": "string", "description": "结束日期，格式 YYYY-MM-DD，包含这一天"},
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "update_record",
-            "description": "修改一条已有的记录。只填要修改的字段，没填的字段保持不变。record_id 要先用 query_records 查出来",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "record_id": {"type": "integer", "description": "要修改的记录 id"},
-                    "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "新的类型"},
-                    "amount": {"type": "number", "description": "新的金额，必须大于0"},
-                    "category": {"type": "string", "description": "新的分类"},
-                    "remark": {"type": "string", "description": "新的备注"},
-                },
-                "required": ["record_id"],
-            },
-        },
+    "required": [],
+})
+
+register_tool(update_record, RISK_WRITE, "修改一条已有的记录。只填要修改的字段，没填的字段保持不变。record_id 要先用 query_records 查出来", {
+    "type": "object",
+    "properties": {
+        "record_id": {"type": "integer", "description": "要修改的记录 id"},
+        "record_type": {"type": "string", "enum": ["收入", "支出"], "description": "新的类型"},
+        "amount": {"type": "number", "description": "新的金额，必须大于0"},
+        "category": {"type": "string", "description": "新的分类"},
+        "remark": {"type": "string", "description": "新的备注"},
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "delete_record",
-            "description": "删除一条记录，删除后无法恢复。程序会在执行前自动向用户确认，调用前不需要先问用户。record_id 要先用 query_records 查出来",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "record_id": {"type": "integer", "description": "要删除的记录 id"},
-                },
-                "required": ["record_id"],
-            },
-        },
+    "required": ["record_id"],
+})
+
+register_tool(delete_record, RISK_CONFIRM, "删除一条记录，删除后无法恢复。程序会在执行前自动向用户确认，调用前不需要先问用户。record_id 要先用 query_records 查出来", {
+    "type": "object",
+    "properties": {
+        "record_id": {"type": "integer", "description": "要删除的记录 id"},
     },
-     {
-        "type": "function",
-        "function": {
-            "name": "set_budget",
-            "description": "设置某个分类的每月预算，已经设置过就覆盖成新金额",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "category": {"type": "string", "description": "分类，比如餐饮、交通"},
-                    "amount": {"type": "number", "description": "每月预算金额，必须大于0"},
-                },
-                "required": ["category", "amount"],
-            },
-        },
+    "required": ["record_id"],
+})
+
+register_tool(set_budget, RISK_WRITE, "设置某个分类的每月预算，已经设置过就覆盖成新金额", {
+    "type": "object",
+    "properties": {
+        "category": {"type": "string", "description": "分类，比如餐饮、交通"},
+        "amount": {"type": "number", "description": "每月预算金额，必须大于0"},
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_budgets",
-            "description": "列出所有设置了预算的分类，以及本月已花、剩余、是否超支",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
-        },
-    },
-]
+    "required": ["category", "amount"],
+})
+
+register_tool(list_budgets, RISK_READ, "列出所有设置了预算的分类，以及本月已花、剩余、是否超支", {
+    "type": "object",
+    "properties": {},
+    "required": [],
+})
+
+#从注册表生成给模型的说明书
+tools = [t["schema"] for t in TOOL_REGISTRY.values()]
+
+def get_risk(name):
+    """返回工具的风险等级；没有这个工具返回 None"""
+
+    if TOOL_REGISTRY.get(name) is None:
+        return None
+
+    return TOOL_REGISTRY[name]["risk"]
 
 # 工具名 → 真正执行的函数
 TOOL_FUNCTIONS = {
@@ -242,11 +240,11 @@ def run_tool(name, arguments):
     try:
         # 有的模型在没有参数时返回空字符串，当成 {} 处理
         args = json.loads(arguments or "{}")# JSON字符串 → 字典
-        func = TOOL_FUNCTIONS.get(name)
-        if func is None:
+        entry = TOOL_REGISTRY.get(name)
+        if entry is None:
             result = {"error": f"没有这个工具：{name}"}
         else:
-            result = func(**args)# 把字典拆成关键字参数传进去
+            result = entry["func"](**args)# 把字典拆成关键字参数传进去
     except json.JSONDecodeError:
         logger.error(f"[工具调用错误]{name}参数不是合法的JSON")
         result = {"error": "参数不是合法的JSON，请按说明书的格式重新调用"}
@@ -263,15 +261,20 @@ def run_tool(name, arguments):
     logger.info(f"[工具结果] {name} 耗时 {round(1000*use_time)}ms {result}")
     return json.dumps(result, ensure_ascii=False)# 字典 → JSON字符串 false是保证中文不会被转成 \u5f20 这种编码
 
-def confirm_with_user(args):
-    """危险操作执行前，由程序直接问用户。返回 True 表示同意执行"""
-    record = get_record(args.get("record_id"))
-    if record is None:
-        return True  # 记录不存在，交给 delete_record 自己返回"没有这条记录"
-    print(f"  [需要确认] 即将删除：#{record['id']} {record['created_at']} "
-          f"{record['record_type']} {record['amount']}元 {record['category']} {record['remark']}")
-    answer = input("  确认删除？(y/n)：").strip().lower()
-    return answer == "y"#answer == "y"本来就是true或者false
+
+def confirm_with_user(name, args):
+    """命令行版：执行需要确认的工具之前，直接问用户。返回 True 表示同意"""
+    print(f"  [需要确认] 工具：{name}  参数：{args}")
+    record_id = args.get("record_id")
+    if record_id is not None:
+        record = get_record(record_id)
+        if record is None:
+            print("  （这条记录已经不存在了）")
+        else:
+            print(f"  记录：#{record['id']} {record['created_at']} {record['record_type']} "
+                  f"{record['amount']}元 {record['category']} {record['remark']}")
+    answer = input("  确认执行？(y/n)：").strip().lower()
+    return answer == "y"
 
 # ===== 第4段：处理一轮对话 =====
 #chat 遇到删除：不执行，把 tool_call_id、工具名、参数存进便签；这一批调用全部处理完后，带着便签 return
@@ -325,7 +328,8 @@ def chat(messages):
 
         pending = None
         for call in message.tool_calls:
-            if call.function.name in NEED_CONFIRM:
+            risk=get_risk(call.function.name)
+            if risk==RISK_CONFIRM:
                 if pending is None:
                     pending={"tool_call_id": call.id, "name": call.function.name, "arguments": call.function.arguments}
                 else:
@@ -333,7 +337,8 @@ def chat(messages):
             
             else:#don't need confirm
                 key=(call.function.name, call.function.arguments)
-                if call.function.name in READ_ONLY_TOOLS and key in seen:
+
+                if risk==RISK_READ and key in seen:
                     result=json.dumps({"error": "刚才已用相同参数查询过，结果在上文，请直接根据已有结果回答"}, ensure_ascii=False)
                     logger.info(f"[重复调用]{call.function.name}")
                 else:
@@ -386,7 +391,7 @@ def main():
         while result["type"] == "confirm":
             pending = result["pending"]
             args = json.loads(pending["arguments"])              # 提示：confirm_with_user 要的是字典，便签里的参数是字符串
-            approved = confirm_with_user(args)   # 打印要删的记录，问 y/n，返回 True 或 False
+            approved = confirm_with_user(pending["name"], args)   # 打印要删的记录，问 y/n，返回 True 或 False
             result = resume_chat(messages, pending, approved)
 
         print("助手：", result["content"])

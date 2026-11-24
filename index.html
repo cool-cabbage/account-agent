@@ -109,11 +109,14 @@ async function handleResult(r) {
     const rec = r.data.record;
     let text;
     if (rec) {
-      text = "确认删除这条记录吗？\n#" + rec.id + " " + rec.created_at + " " +
+      text = "确认执行这一步吗？\n#" + rec.id + " " + rec.created_at + " " +
              rec.record_type + " " + rec.amount + "元 " + rec.category + " " + (rec.remark || "");
-    } else {
+    } else if (r.data.tool === "delete_record") {
       text = "要删除的记录已经不存在了，仍然继续吗？";
+    } else {
+      text = "确认执行 " + r.data.tool + " 吗？\n参数：" + JSON.stringify(r.data.arguments);
     }
+
     const approved = window.confirm(text);   // 浏览器自带的确定/取消弹窗，点确定返回 true
     addMessage(approved ? "（已确认删除）" : "（已取消删除）", "user");
 

@@ -115,3 +115,32 @@ def test_delete_pause_and_cancel(monkeypatch):
     assert result2["type"]=="reply"
     assert db.get_record(rid) is not None
     assert_paired(messages)
+
+def test_new_confirm_tool_pauses(monkeypatch):
+    """新注册一个需要确认的工具，loop 不用改就会暂停；同意后才执行"""
+    def send_report(email):
+        return {"sent": email}
+
+    monkeypatch.setitem(agent.TOOL_REGISTRY, "send_report",
+                        {"func": send_report, "risk": agent.RISK_CONFIRM, "schema": {}})
+    fake = FakeClient([
+        fake_tool_call("send_report", '{"email": "a@b.c"}', call_id="call_x"),
+        fake_reply("已发送"),
+    ])
+    monkeypatch.setattr(agent, "client", fake)
+    messages = new_messages("把报告发给 a@b.c")
+
+    result = chat(messages)
+
+
+    assert result["type"]=="confirm"
+    assert result["pending"]["name"]=="send_report"
+
+
+    result2 = resume_chat(messages, result["pending"], True)
+
+    assert result2["type"]=="reply"
+    tool_messages=[m for m in messages if m["role"]=="tool"]
+    assert "sent" in tool_messages[-1]["content"]
+    assert_paired(messages)
+        
