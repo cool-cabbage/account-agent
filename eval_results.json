@@ -1,0 +1,828 @@
+[
+  {
+    "id": 1,
+    "tag": "记账",
+    "input": "午饭花了20",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 20,
+          "category": "餐饮"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 20,
+          "category": "餐饮",
+          "remark": "午饭"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 2,
+    "tag": "记账",
+    "input": "打车回学校18",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 18,
+          "category": "交通"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 18,
+          "category": "交通",
+          "remark": "打车回学校"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 3,
+    "tag": "记账",
+    "input": "买了个耳机199",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 199,
+          "category": "购物"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 199,
+          "category": "购物",
+          "remark": "耳机"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 4,
+    "tag": "记账",
+    "input": "看电影花了45",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 45,
+          "category": "娱乐"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 45,
+          "category": "娱乐",
+          "remark": "看电影"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 5,
+    "tag": "记账",
+    "input": "收到生活费2000",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "收入",
+          "amount": 2000,
+          "category": "生活费"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "收入",
+          "amount": 2000,
+          "category": "生活费"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 6,
+    "tag": "记账",
+    "input": "工资到账3500",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "收入",
+          "amount": 3500,
+          "category": "工资"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "收入",
+          "amount": 3500,
+          "category": "工资",
+          "remark": "工资到账"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 7,
+    "tag": "中文数字",
+    "input": "午饭二十五块",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 25,
+          "category": "餐饮"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 25,
+          "category": "餐饮",
+          "remark": "午饭"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 8,
+    "tag": "记账",
+    "input": "奶茶12.5",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 12.5,
+          "category": "餐饮"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 12.5,
+          "category": "餐饮",
+          "remark": "奶茶"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 9,
+    "tag": "多笔",
+    "input": "早饭8块，午饭15",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "amount": 8,
+          "category": "餐饮"
+        }
+      },
+      {
+        "name": "add_record",
+        "args": {
+          "amount": 15,
+          "category": "餐饮"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 8,
+          "category": "餐饮",
+          "remark": "早饭"
+        }
+      },
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 15,
+          "category": "餐饮",
+          "remark": "午饭"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 10,
+    "tag": "多笔",
+    "input": "打车20，奶茶10",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "amount": 20,
+          "category": "交通"
+        }
+      },
+      {
+        "name": "add_record",
+        "args": {
+          "amount": 10,
+          "category": "餐饮"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 20,
+          "category": "交通",
+          "remark": "打车"
+        }
+      },
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 10,
+          "category": "餐饮",
+          "remark": "奶茶"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 11,
+    "tag": "多笔",
+    "input": "今天坐地铁花了4块，晚上又打车花了30",
+    "calls": [
+      {
+        "name": "add_record",
+        "args": {
+          "amount": 4,
+          "category": "交通"
+        }
+      },
+      {
+        "name": "add_record",
+        "args": {
+          "amount": 30,
+          "category": "交通"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 4,
+          "category": "交通",
+          "remark": "坐地铁"
+        }
+      },
+      {
+        "name": "add_record",
+        "args": {
+          "record_type": "支出",
+          "amount": 30,
+          "category": "交通",
+          "remark": "打车"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 12,
+    "tag": "查询-日期",
+    "input": "这个月餐饮花了多少",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "category": "餐饮",
+          "start_date": "2026-11-01",
+          "end_date": [
+            "2026-11-25",
+            "2026-11-30"
+          ]
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "category": "餐饮",
+          "record_type": "支出",
+          "start_date": "2026-11-01",
+          "end_date": "2026-11-30"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 13,
+    "tag": "查询-日期",
+    "input": "今天花了多少",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-25",
+          "end_date": "2026-11-25"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "record_type": "支出",
+          "start_date": "2026-11-25",
+          "end_date": "2026-11-25"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 14,
+    "tag": "查询-日期",
+    "input": "昨天花了多少",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-24",
+          "end_date": "2026-11-24"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-24",
+          "end_date": "2026-11-24",
+          "record_type": "支出"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 15,
+    "tag": "查询-日期",
+    "input": "上周交通花了多少",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "category": "交通",
+          "start_date": "2026-11-16",
+          "end_date": "2026-11-22"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "record_type": "支出",
+          "category": "交通",
+          "start_date": "2026-11-16",
+          "end_date": "2026-11-22"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 16,
+    "tag": "查询-日期",
+    "input": "这个月收入多少",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "record_type": "收入",
+          "start_date": "2026-11-01",
+          "end_date": [
+            "2026-11-25",
+            "2026-11-30"
+          ]
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "record_type": "收入",
+          "start_date": "2026-11-01",
+          "end_date": "2026-11-30"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 17,
+    "tag": "查询",
+    "input": "列出最近的记录",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {}
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {}
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 18,
+    "tag": "查询-日期",
+    "input": "10月一共花了多少",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-10-01",
+          "end_date": "2026-10-31"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "record_type": "支出",
+          "start_date": "2026-10-01",
+          "end_date": "2026-10-31"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 19,
+    "tag": "查询-日期",
+    "input": "前天买了什么",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-23",
+          "end_date": "2026-11-23"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-23",
+          "end_date": "2026-11-23"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 20,
+    "tag": "预算",
+    "input": "餐饮每月预算500",
+    "calls": [
+      {
+        "name": "set_budget",
+        "args": {
+          "category": "餐饮",
+          "amount": 500
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "set_budget",
+        "args": {
+          "category": "餐饮",
+          "amount": 500
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 21,
+    "tag": "预算",
+    "input": "把交通预算改成150",
+    "calls": [
+      {
+        "name": "set_budget",
+        "args": {
+          "category": "交通",
+          "amount": 150
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "set_budget",
+        "args": {
+          "category": "交通",
+          "amount": 150
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 22,
+    "tag": "预算",
+    "input": "预算还剩多少",
+    "calls": [
+      {
+        "name": "list_budgets",
+        "args": {}
+      }
+    ],
+    "actual": [
+      {
+        "name": "list_budgets",
+        "args": {}
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 23,
+    "tag": "预算",
+    "input": "我餐饮超支了吗",
+    "calls": [
+      {
+        "name": "list_budgets",
+        "args": {}
+      }
+    ],
+    "actual": [
+      {
+        "name": "list_budgets",
+        "args": {}
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 24,
+    "tag": "改删先查",
+    "input": "把今天午饭那笔改成25块",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-25",
+          "end_date": "2026-11-25"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "category": "餐饮",
+          "record_type": "支出",
+          "start_date": "2026-11-25",
+          "end_date": "2026-11-25"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 25,
+    "tag": "改删先查",
+    "input": "把11月1日那笔吃饭删了",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-01",
+          "end_date": "2026-11-01"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "category": "餐饮",
+          "start_date": "2026-11-01",
+          "end_date": "2026-11-01"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 26,
+    "tag": "改删先查",
+    "input": "删掉昨天打车那笔",
+    "calls": [
+      {
+        "name": "query_records",
+        "args": {
+          "start_date": "2026-11-24",
+          "end_date": "2026-11-24"
+        }
+      }
+    ],
+    "actual": [
+      {
+        "name": "query_records",
+        "args": {
+          "category": "交通",
+          "start_date": "2026-11-24",
+          "end_date": "2026-11-24"
+        }
+      }
+    ],
+    "reply": "",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 27,
+    "tag": "追问",
+    "input": "今天吃饭花了点钱",
+    "calls": [],
+    "actual": [],
+    "reply": "请问这顿饭花了多少元？",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 28,
+    "tag": "追问",
+    "input": "帮我设个预算300",
+    "calls": [],
+    "actual": [],
+    "reply": "你想给哪个分类设每月300元的预算？比如餐饮、交通、购物、娱乐等。",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 29,
+    "tag": "追问",
+    "input": "记一笔",
+    "calls": [],
+    "actual": [],
+    "reply": "好的，请告诉我这几项信息：\n\n1. 是收入还是支出？\n2. 金额多少？\n3. 分类（餐饮、交通、购物、娱乐、生活费、工资、其他）\n4. 备注（可选）",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  },
+  {
+    "id": 30,
+    "tag": "追问",
+    "input": "我花了钱",
+    "calls": [],
+    "actual": [],
+    "reply": "请问这笔钱花了多少、是哪方面的（例如餐饮、交通、购物）？",
+    "error": null,
+    "tool_ok": true,
+    "all_ok": true
+  }
+]
